@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>席替えプログラム（ペースト読み込み方式）</title>
+    <style>
+        body {
+            font-family: sans-serif; margin: 0; padding: 20px;
+            background-color: #f9f9f9;
+        }
+        /* セーブデータ読み込み画面のスタイル */
+        #loadScreen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #e3f2fd; z-index: 9999; display: flex;
+            flex-direction: column; justify-content: center; align-items: center;
+        }
+        .load-box {
+            background: #fff; padding: 40px; border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; border: 3px solid #2196F3;
+            max-width: 600px; width: 90%;
+        }
+        .load-box h2 { margin-top: 0; color: #1976d2; }
+        .load-box p { color: #555; margin-bottom: 20px; line-height: 1.5; }
+        textarea {
+            width: 100%; height: 150px; padding: 10px; font-family: monospace;
+            font-size: 14px; border: 2px solid #ccc; border-radius: 5px; box-sizing: border-box;
+            resize: vertical; margin-bottom: 20px;
+        }
+        .btn-load {
+            padding: 12px 30px; font-size: 18px; cursor: pointer; border: none;
+            background-color: #2196F3; color: white; border-radius: 5px; font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.2s;
+        }
+        .btn-load:hover { background-color: #1976d2; transform: translateY(-2px); }
+
+        /* アプリ本体のスタイル */
+        #appContent { display: none; }
+        .top-menu {
+            text-align: center; margin-bottom: 20px; padding: 15px;
+            background-color: #fff; border: 2px solid #ccc;
+            border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            display: flex; justify-content: center; align-items: center; gap: 20px; flex-wrap: wrap;
+        }
+        .checkbox-group { display: flex; gap: 15px; font-size: 16px; font-weight: bold; flex-wrap: wrap; justify-content: center; align-items: center;}
+        
+        .color-toggles { border-left: 2px solid #ddd; padding-left: 15px; display: flex; gap: 15px; }
+        .bg-blue { background-color: #bbdefb !important; border-color: #1976d2 !important; }
+        .bg-red { background-color: #ffcdd2 !important; border-color: #d32f2f !important; }
+        
+        .flip-toggle { background: #e0f7fa; padding: 4px 10px; border-radius: 5px; border: 1px solid #00bcd4; cursor: pointer; transition: 0.2s;}
+        .flip-toggle:hover { background: #b2ebf2; }
+
+        .main-container { display: flex; justify-content: center; align-items: flex-start; gap: 40px; }
+        .left-panel { text-align: center; }
+        
+        #seatArea { display: flex; flex-direction: column; align-items: center; }
+        
+        .blackboard {
+            display: inline-block; width: 350px; padding: 10px; margin-bottom: 20px;
+            border: 2px solid #333; background-color: #f0f0f0; font-weight: bold; letter-spacing: 5px;
+            transition: 0.3s;
+        }
+        table { margin: 0 auto; border-collapse: separate; border-spacing: 8px; transition: 0.3s;}
+        td {
+            width: 95px; height: 85px; border: 2px solid #333; background-color: #fff;
+            text-align: center; vertical-align: middle; padding: 4px; box-sizing: border-box; border-radius: 4px;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        .seat-num { font-size: 15px; color: #555; font-weight: bold; }
+        .seat-name-ja { font-size: 13px; font-weight: bold; color: #111; margin-top: 2px; }
+        .seat-name-en { font-size: 11px; color: #333; margin-top: 2px; line-height: 1.1; word-break: break-word; }
+
+        .right-panel {
+            background-color: #fff; border: 2px solid #ccc; border-radius: 8px;
+            padding: 20px; width: 320px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .btn {
+            padding: 12px 25px; font-size: 18px; cursor: pointer; border: 2px solid #333;
+            background-color: #4CAF50; color: white; border-radius: 5px; font-weight: bold; margin-top: 15px;
+        }
+        .btn:hover { background-color: #45a049; }
+        .btn-download { background-color: #9C27B0; margin-left: 10px; }
+        .btn-download:hover { background-color: #7B1FA2; }
+        .btn-small { padding: 8px 15px; font-size: 14px; background-color: #2196F3; border: none; color: white; border-radius: 3px; cursor: pointer;}
+        .btn-lang { background-color: #FF9800; border: 2px solid #e68a00; color: white; font-weight: bold;}
+        .btn-clear { background-color: #f44336; margin-top: 10px; width: 100%;}
+        .form-group { margin-bottom: 15px; }
+        select { padding: 5px; font-size: 14px; max-width: 100%; }
+        
+        #ruleList { list-style-type: none; padding: 0; margin: 0; }
+        #ruleList li { 
+            background: #eee; margin-bottom: 5px; padding: 8px 10px; 
+            border-left: 4px solid #2196F3; font-size: 14px; 
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .delete-btn {
+            color: #d32f2f; cursor: pointer; font-weight: bold; font-size: 16px;
+            padding: 0 5px; border-radius: 3px; transition: 0.2s;
+        }
+        .delete-btn:hover { background-color: #ffcdd2; }
+
+        #exportArea {
+            display: none; margin-top: 25px; padding: 15px;
+            border: 3px dashed #9C27B0; background-color: #fff; border-radius: 10px; text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loadScreen">
+        <div class="load-box">
+            <h2>💾 セーブデータを入力</h2>
+            <p>個人情報保護のため、プログラム内に生徒のデータは入っていません。<br>下の枠に<b>セーブデータのテキスト</b>をペーストして、ボタンを押してください。</p>
+            <textarea id="dataInput" placeholder="ここにセーブデータをペーストしてください..."></textarea>
+            <button class="btn-load" onclick="loadData()">データを読み込んでスタート</button>
+        </div>
+    </div>
+
+    <div id="appContent">
+        <div class="top-menu">
+            <button class="btn-small btn-lang" id="btnToggleLang" onclick="toggleUILang()">UIを英語にする / Switch to English</button>
+            <div class="checkbox-group">
+                <label><input type="checkbox" id="chkShowNum" checked onchange="renderSeats()"><span id="lblShowNum">出席番号</span></label>
+                <label><input type="checkbox" id="chkShowJa" checked onchange="renderSeats()"><span id="lblShowJa">日本語</span></label>
+                <label><input type="checkbox" id="chkShowEn" onchange="renderSeats()"><span id="lblShowEn">英語</span></label>
+            </div>
+            <div class="checkbox-group color-toggles">
+                <label style="color: #1976d2;"><input type="checkbox" id="chkIntami" onchange="renderSeats()"><span id="lblIntami">インタミ (青)</span></label>
+                <label style="color: #d32f2f;"><input type="checkbox" id="chkAdv" onchange="renderSeats()"><span id="lblAdv">アドバンスト (赤)</span></label>
+            </div>
+            <div class="checkbox-group">
+                <label class="flip-toggle"><input type="checkbox" id="chkFlipView" onchange="renderSeats()"><span id="lblFlip">🔄 教卓からの視点</span></label>
+            </div>
+        </div>
+
+        <div class="main-container">
+            <div class="left-panel">
+                <div id="seatArea">
+                    <div class="blackboard" id="txtBlackboard">前（教卓・黒板）</div>
+                    <table id="seatTable"></table>
+                </div>
+                <br>
+                <button class="btn" id="btnShuffle" onclick="shuffleSeats()">席替えをする！</button>
+                <button class="btn btn-download" id="btnDownload" onclick="generateInteractiveFile()">保存用ファイルを作る</button>
+
+                <div id="exportArea">
+                    <p style="color: #9C27B0; font-weight: bold; margin-top: 0;" id="txtExportTitle">▼ ファイルが準備できました！</p>
+                    <p style="font-size: 14px; margin-bottom: 15px;" id="txtExportDesc">下のボタンを「右クリック（スマホは長押し）」して、「リンク先を保存」を選んでください。</p>
+                    <a id="downloadLink" href="#" download="seating_chart.html" class="btn btn-download" style="display: inline-block; text-decoration: none;">📥 ファイルを保存する</a>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <h3 id="txtRuleTitle">席の固定ルール</h3>
+                <div class="form-group">
+                    <label id="txtLabelNum">対象: </label>
+                    <select id="studentSelect"></select>
+                </div>
+                <div class="form-group">
+                    <label id="txtLabelRow1">位置: 前から </label>
+                    <select id="rowSelect">
+                        <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+                        <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+                        <option value="7">7</option>
+                    </select>
+                    <label id="txtLabelRow2"> マス目</label>
+                </div>
+                <button class="btn-small" id="btnAddRule" onclick="addRule()">ルールを追加</button>
+                <hr>
+                <h4 id="txtCurrentRules">現在のルール</h4>
+                <ul id="ruleList"></ul>
+                <button class="btn-small btn-clear" id="btnResetRules" onclick="clearRules()">全てリセット</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 生徒データは空っぽ
+        let students = [];
+        let intamiIds = [];
+        let advIds = [];
+
+        const rows = 7; const cols = 6;
+        let currentGrid = []; let rules = {}; let isUIEnglish = false; 
+
+        // ▼ ペーストされたデータを読み込む関数
+        function loadData() {
+            const inputData = document.getElementById('dataInput').value;
+            if (!inputData.trim()) {
+                alert("セーブデータがペーストされていません！");
+                return;
+            }
+            try {
+                // テキストをデータに変換
+                const data = JSON.parse(inputData);
+                students = data.students;
+                intamiIds = data.intamiIds || [];
+                advIds = data.advIds || [];
+                
+                // 読み込み成功したら画面を切り替える
+                document.getElementById('loadScreen').style.display = 'none';
+                document.getElementById('appContent').style.display = 'block';
+                initSeats();
+            } catch (error) {
+                alert("データの読み込みに失敗しました。正しいセーブデータをペーストしているか確認してください！");
+                console.error(error);
+            }
+        }
+
+        function initSeats() {
+            currentGrid = Array(rows).fill(null).map(() => Array(cols).fill(null));
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    currentGrid[r][c] = (5 - c) * 7 + r + 1;
+                }
+            }
+            updateSelectBox(); renderSeats();
+        }
+
+        function renderSeats() {
+            const table = document.getElementById('seatTable');
+            table.innerHTML = '';
+            const showNum = document.getElementById('chkShowNum').checked;
+            const showJa = document.getElementById('chkShowJa').checked;
+            const showEn = document.getElementById('chkShowEn').checked;
+            const showIntami = document.getElementById('chkIntami').checked;
+            const showAdv = document.getElementById('chkAdv').checked;
+            
+            const isFlipped = document.getElementById('chkFlipView').checked;
+            const seatArea = document.getElementById('seatArea');
+            seatArea.style.flexDirection = isFlipped ? 'column-reverse' : 'column';
+            document.getElementById('txtBlackboard').style.marginBottom = isFlipped ? '0px' : '20px';
+            document.getElementById('txtBlackboard').style.marginTop = isFlipped ? '20px' : '0px';
+
+            for (let i = 0; i < rows; i++) {
+                let r = isFlipped ? (rows - 1 - i) : i; 
+                let tr = document.createElement('tr'); 
+                for (let j = 0; j < cols; j++) {
+                    let c = isFlipped ? (cols - 1 - j) : j;
+                    let td = document.createElement('td'); 
+                    let studentId = currentGrid[r][c];
+                    let student = students.find(s => s.id === studentId);
+                    
+                    if (student) {
+                        let html = '';
+                        if (showNum) html += `<div class="seat-num">${student.id}</div>`;
+                        if (showJa) html += `<div class="seat-name-ja">${student.ja}</div>`;
+                        if (showEn) html += `<div class="seat-name-en">${student.en}</div>`;
+                        td.innerHTML = html;
+                        if (showIntami && intamiIds.includes(student.id)) td.classList.add('bg-blue');
+                        if (showAdv && advIds.includes(student.id)) td.classList.add('bg-red');
+                    }
+                    tr.appendChild(td);
+                }
+                table.appendChild(tr);
+            }
+            document.getElementById('exportArea').style.display = 'none'; 
+        }
+
+        function generateInteractiveFile() {
+            const isFlipped = document.getElementById('chkFlipView').checked;
+            let tableHTML = '';
+            for (let i = 0; i < rows; i++) {
+                let r = isFlipped ? (rows - 1 - i) : i;
+                tableHTML += '<tr>';
+                for (let j = 0; j < cols; j++) {
+                    let c = isFlipped ? (cols - 1 - j) : j;
+                    let studentId = currentGrid[r][c];
+                    let student = students.find(s => s.id === studentId);
+                    let tdClass = '';
+                    if (student) {
+                        if (intamiIds.includes(student.id)) tdClass = 'group-intami';
+                        if (advIds.includes(student.id)) tdClass = 'group-adv';
+                    }
+                    tableHTML += `<td class="${tdClass}">`;
+                    if (student) {
+                        tableHTML += `<div class="seat-num">${student.id}</div>`;
+                        tableHTML += `<div class="seat-name-ja">${student.ja}</div>`;
+                        tableHTML += `<div class="seat-name-en">${student.en}</div>`;
+                    }
+                    tableHTML += '</td>';
+                }
+                tableHTML += '</tr>';
+            }
+
+            const flexDir = isFlipped ? 'column-reverse' : 'column';
+            const boardMargin = isFlipped ? 'margin-top: 20px; margin-bottom: 0;' : 'margin-bottom: 20px; margin-top: 0;';
+
+            const htmlContent = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seating Chart</title>
+<style>
+    body { font-family: sans-serif; background: #f9f9f9; text-align: center; padding: 20px 5px; }
+    .controls-wrapper { background: #fff; padding: 15px; border-radius: 8px; border: 2px solid #ccc; margin-bottom: 20px; display: inline-block;}
+    .controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 10px; }
+    .controls-color { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; padding-top: 10px; border-top: 1px dashed #ccc;}
+    label { display: inline-block; padding: 10px 15px; background: #ddd; color: #333; border-radius: 5px; font-weight: bold; cursor: pointer; }
+    
+    .seat-container { display: flex; flex-direction: ${flexDir}; align-items: center; }
+    .blackboard { display: inline-block; width: 300px; padding: 10px; ${boardMargin} border: 2px solid #333; background: #f0f0f0; font-weight: bold; }
+    
+    table { margin: 0 auto; border-collapse: separate; border-spacing: 5px; }
+    td { width: 85px; height: 80px; border: 2px solid #333; background: #fff; text-align: center; vertical-align: middle; border-radius: 4px; box-sizing: border-box; }
+    .seat-num, .seat-name-ja, .seat-name-en { display: none; }
+    #chkNum:checked ~ .seat-container .seat-num { display: block; font-size: 14px; font-weight: bold; }
+    #chkJa:checked ~ .seat-container .seat-name-ja { display: block; font-size: 13px; font-weight: bold; }
+    #chkEn:checked ~ .seat-container .seat-name-en { display: block; font-size: 11px; }
+    #chkIntami:checked ~ .seat-container td.group-intami { background-color: #bbdefb; border-color: #1976d2; }
+    #chkAdv:checked ~ .seat-container td.group-adv { background-color: #ffcdd2; border-color: #d32f2f; }
+</style>
+</head>
+<body>
+    <input type="checkbox" id="chkNum" checked style="display:none;">
+    <input type="checkbox" id="chkJa" checked style="display:none;">
+    <input type="checkbox" id="chkEn" style="display:none;">
+    <input type="checkbox" id="chkIntami" style="display:none;">
+    <input type="checkbox" id="chkAdv" style="display:none;">
+    <div class="controls-wrapper">
+        <div class="controls">
+            <label for="chkNum">出席番号</label>
+            <label for="chkJa">日本語</label>
+            <label for="chkEn">英語</label>
+        </div>
+        <div class="controls-color">
+            <label for="chkIntami" style="color: #1976d2;">インタミ(青)</label>
+            <label for="chkAdv" style="color: #d32f2f;">アドバ(赤)</label>
+        </div>
+    </div>
+    <div class="seat-container">
+        <div class="blackboard">前（教卓・黒板）</div>
+        <table>${tableHTML}</table>
+    </div>
+</body>
+</html>`;
+
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const url = window.URL.createObjectURL(blob);
+            document.getElementById('exportArea').style.display = 'block';
+            document.getElementById('downloadLink').href = url;
+            window.open('', '_blank').document.write(htmlContent);
+        }
+
+        function updateSelectBox() {
+            const select = document.getElementById('studentSelect');
+            select.innerHTML = '';
+            students.forEach(s => {
+                let option = document.createElement('option');
+                option.value = s.id;
+                option.textContent = isUIEnglish ? `${s.id}. ${s.en}` : `${s.id}番 ${s.ja}`;
+                select.appendChild(option);
+            });
+        }
+        function addRule() {
+            const studentId = document.getElementById('studentSelect').value;
+            const row = document.getElementById('rowSelect').value;
+            rules[studentId] = parseInt(row); updateRuleList();
+        }
+        function updateRuleList() {
+            const list = document.getElementById('ruleList'); list.innerHTML = '';
+            for (let id in rules) {
+                let li = document.createElement('li');
+                let student = students.find(s => s.id == id);
+                let name = isUIEnglish ? student.en : student.ja;
+                li.innerHTML = `<span>${id}番 ${name}：前から ${rules[id]}マス目</span><span class="delete-btn" onclick="removeSingleRule(${id})">✖</span>`;
+                list.appendChild(li);
+            }
+        }
+        function removeSingleRule(id) { delete rules[id]; updateRuleList(); }
+        function clearRules() { rules = {}; updateRuleList(); }
+
+        function toggleUILang() {
+            isUIEnglish = !isUIEnglish;
+            document.getElementById('btnToggleLang').textContent = isUIEnglish ? "日本語に戻す" : "UIを英語にする";
+            document.getElementById('lblFlip').textContent = isUIEnglish ? "🔄 View from Teacher" : "🔄 教卓からの視点";
+            updateSelectBox(); updateRuleList();
+        }
+
+        function shuffleSeats() {
+            let nextGrid = Array(rows).fill(null).map(() => Array(cols).fill(null));
+            let unassigned = [];
+            for (let i = 1; i <= 42; i++) unassigned.push(i);
+
+            for (let idStr in rules) {
+                let id = parseInt(idStr); let targetRow = rules[idStr] - 1; 
+                let emptyCols = [];
+                for(let c = 0; c < cols; c++) { if(nextGrid[targetRow][c] === null) emptyCols.push(c); }
+                if (emptyCols.length > 0) {
+                    let randomCol = emptyCols[Math.floor(Math.random() * emptyCols.length)];
+                    nextGrid[targetRow][randomCol] = id;
+                    unassigned = unassigned.filter(s => s !== id);
+                }
+            }
+            for (let i = unassigned.length - 1; i > 0; i--) {
+                let j = Math.floor(Math.random() * (i + 1));
+                [unassigned[i], unassigned[j]] = [unassigned[j], unassigned[i]];
+            }
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    if (nextGrid[r][c] === null) nextGrid[r][c] = unassigned.pop();
+                }
+            }
+            currentGrid = nextGrid; renderSeats();
+        }
+    </script>
+</body>
+</html>
